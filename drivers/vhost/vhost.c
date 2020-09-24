@@ -708,8 +708,6 @@ void vhost_dev_cleanup(struct vhost_dev *dev)
 	/* No one will access memory at this point */
 	vhost_iotlb_free(dev->umem);
 	dev->umem = NULL;
-	vhost_iotlb_free(dev->iotlb);
-	dev->iotlb = NULL;
 	vhost_clear_msg(dev);
 	wake_up_interruptible_poll(&dev->wait, EPOLLIN | EPOLLRDNORM);
 	WARN_ON(!llist_empty(&dev->work_list));
