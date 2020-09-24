@@ -41,6 +41,8 @@ struct vdpasim_dev_attr {
 	size_t buffer_size;
 	int nvqs;
 	u32 id;
+	u32 as_num;
+	u32 group_num;
 
 	work_func_t work_fn;
 	void (*get_config)(struct vdpasim *vdpasim, void *config);
