@@ -2242,7 +2242,8 @@ static u32 mlx5_vdpa_get_generation(struct vdpa_device *vdev)
 	return mvdev->generation;
 }
 
-static int mlx5_vdpa_set_map(struct vdpa_device *vdev, struct vhost_iotlb *iotlb)
+static int mlx5_vdpa_set_map(struct vdpa_device *vdev, unsigned int asid,
+			     struct vhost_iotlb *iotlb)
 {
 	struct mlx5_vdpa_dev *mvdev = to_mvdev(vdev);
 	bool change_map;
@@ -2442,11 +2443,7 @@ static int mlx5_vdpa_dev_add(struct vdpa_mgmt_dev *v_mdev, const char *name)
 	max_vqs = min_t(u32, max_vqs, MLX5_MAX_SUPPORTED_VQS);
 
 	ndev = vdpa_alloc_device(struct mlx5_vdpa_net, mvdev.vdev, mdev->device, &mlx5_vdpa_ops,
-<<<<<<< HEAD
-				 name, false);
-=======
-				 2 * mlx5_vdpa_max_qps(max_vqs), 1);
->>>>>>> vdpa: introduce virtqueue groups
+				 name, false, 1, 1);
 	if (IS_ERR(ndev))
 		return PTR_ERR(ndev);
 

@@ -603,10 +603,10 @@ static int vhost_vdpa_map(struct vhost_vdpa *v, struct vhost_iotlb *iotlb,
 		return r;
 
 	if (ops->dma_map) {
-		r = ops->dma_map(vdpa, iova, size, pa, perm, opaque);
+		r = ops->dma_map(vdpa, 0, iova, size, pa, perm, opaque);
 	} else if (ops->set_map) {
 		if (v->n_iotlb_updates == VHOST_VDPA_NOT_IN_IOTLB_BATCH)
-			r = ops->set_map(vdpa, iotlb);
+			r = ops->set_map(vdpa, 0, iotlb);
 		else
 			v->n_iotlb_updates++;
 	} else {
@@ -633,10 +633,10 @@ static void vhost_vdpa_unmap(struct vhost_vdpa *v, struct vhost_iotlb *iotlb,
 	vhost_vdpa_iotlb_unmap(v, iotlb, iova, iova + size - 1);
 
 	if (ops->dma_map) {
-		ops->dma_unmap(vdpa, iova, size);
+		ops->dma_unmap(vdpa, 0, iova, size);
 	} else if (ops->set_map) {
 		if (v->n_iotlb_updates == VHOST_VDPA_NOT_IN_IOTLB_BATCH)
-			ops->set_map(vdpa, iotlb);
+			ops->set_map(vdpa, 0, iotlb);
 		else
 			v->n_iotlb_updates++;
 	} else {
@@ -868,7 +868,7 @@ static int vhost_vdpa_process_iotlb_msg(struct vhost_dev *dev,
 		break;
 	case VHOST_IOTLB_BATCH_END:
 		if (v->n_iotlb_updates > 0 && ops->set_map)
-			ops->set_map(vdpa, iotlb);
+			ops->set_map(vdpa, 0, iotlb);
 		v->n_iotlb_updates = VHOST_VDPA_NOT_IN_IOTLB_BATCH;
 		break;
 	default:
@@ -1133,6 +1133,10 @@ static int vhost_vdpa_probe(struct vdpa_device *vdpa)
 	struct vhost_vdpa *v;
 	int minor;
 	int r;
+
+	/* Only support 1 address space */
+	if (vdpa->ngroups != 1)
+		return -ENOTSUPP;
 
 	v = kzalloc(sizeof(*v), GFP_KERNEL | __GFP_RETRY_MAYFAIL);
 	if (!v)

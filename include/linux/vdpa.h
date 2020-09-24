@@ -67,6 +67,8 @@ struct vdpa_mgmt_dev;
  * @features_valid: were features initialized? for legacy guests
  * @use_va: indicate whether virtual address must be used by this device
  * @nvqs: maximum number of supported virtqueues
+ * @ngroups: the number of virtqueue groups
+ * @nas: the number of address spaces
  * @mdev: management device pointer; caller must setup when registering device as part
  *	  of dev_add() mgmtdev ops callback before invoking _vdpa_register_device().
  */
@@ -79,6 +81,7 @@ struct vdpa_device {
 	bool use_va;
 	int nvqs;
         unsigned int ngroups;
+        unsigned int nas;
 	struct vdpa_mgmt_dev *mdev;
 };
 
@@ -221,6 +224,7 @@ struct vdpa_map_file {
  *				Needed for device that using device
  *				specific DMA translation (on-chip IOMMU)
  *				@vdev: vdpa device
+ *				@asid: address space identifier
  *				@iotlb: vhost memory mapping to be
  *				used by the vDPA
  *				Returns integer: success (0) or error (< 0)
@@ -229,6 +233,7 @@ struct vdpa_map_file {
  *				specific DMA translation (on-chip IOMMU)
  *				and preferring incremental map.
  *				@vdev: vdpa device
+ *				@asid: address space identifier
  *				@iova: iova to be mapped
  *				@size: size of the area
  *				@pa: physical address for the map
@@ -240,6 +245,7 @@ struct vdpa_map_file {
  *				specific DMA translation (on-chip IOMMU)
  *				and preferring incremental unmap.
  *				@vdev: vdpa device
+ *				@asid: address space identifier
  *				@iova: iova to be unmapped
  *				@size: size of the area
  *				Returns integer: success (0) or error (< 0)
@@ -289,10 +295,12 @@ struct vdpa_config_ops {
 	struct vdpa_iova_range (*get_iova_range)(struct vdpa_device *vdev);
 
 	/* DMA ops */
-	int (*set_map)(struct vdpa_device *vdev, struct vhost_iotlb *iotlb);
-	int (*dma_map)(struct vdpa_device *vdev, u64 iova, u64 size,
-		       u64 pa, u32 perm, void *opaque);
-	int (*dma_unmap)(struct vdpa_device *vdev, u64 iova, u64 size);
+	int (*set_map)(struct vdpa_device *vdev, unsigned int asid,
+                       struct vhost_iotlb *iotlb);
+	int (*dma_map)(struct vdpa_device *vdev, unsigned int asid,
+                       u64 iova, u64 size, u64 pa, u32 perm, void *opaque);
+	int (*dma_unmap)(struct vdpa_device *vdev, unsigned int asid,
+                         u64 iova, u64 size);
 
 	/* Free device resources */
 	void (*free)(struct vdpa_device *vdev);
@@ -301,7 +309,8 @@ struct vdpa_config_ops {
 struct vdpa_device *__vdpa_alloc_device(struct device *parent,
 					const struct vdpa_config_ops *config,
 					size_t size, const char *name,
-					bool use_va, unsigned ngroups);
+					bool use_va, unsigned ngroups,
+                                        unsigned nas);
 
 /**
  * vdpa_alloc_device - allocate and initilaize a vDPA device
@@ -316,13 +325,13 @@ struct vdpa_device *__vdpa_alloc_device(struct device *parent,
  * Return allocated data structure or ERR_PTR upon error
  */
 #define vdpa_alloc_device(dev_struct, member, parent, config, name, use_va, \
-                          ngroups)   \
+                          ngroups, nas)   \
 			  container_of(__vdpa_alloc_device( \
 				       parent, config, \
 				       sizeof(dev_struct) + \
 				       BUILD_BUG_ON_ZERO(offsetof( \
 				       dev_struct, member)), name, use_va, \
-                                       ngroups), \
+                                       ngroups, nas), \
 				       dev_struct, member)
 
 int vdpa_register_device(struct vdpa_device *vdev, int nvqs);
