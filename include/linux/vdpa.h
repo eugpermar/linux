@@ -78,6 +78,7 @@ struct vdpa_device {
 	bool features_valid;
 	bool use_va;
 	int nvqs;
+        unsigned int ngroups;
 	struct vdpa_mgmt_dev *mdev;
 };
 
@@ -157,6 +158,10 @@ struct vdpa_map_file {
  *				for the device
  *				@vdev: vdpa device
  *				Returns virtqueue algin requirement
+ * @get_vq_group:		Get the group id for a specific virtqueue
+ *				@vdev: vdpa device
+ *				@idx: virtqueue index
+ *				Returns u32: group id for this virtqueue
  * @get_features:		Get virtio features supported by the device
  *				@vdev: vdpa device
  *				Returns the virtio features support by the
@@ -263,6 +268,7 @@ struct vdpa_config_ops {
 
 	/* Device ops */
 	u32 (*get_vq_align)(struct vdpa_device *vdev);
+	u32 (*get_vq_group)(struct vdpa_device *vdev, u16 idx);
 	u64 (*get_features)(struct vdpa_device *vdev);
 	int (*set_features)(struct vdpa_device *vdev, u64 features);
 	void (*set_config_cb)(struct vdpa_device *vdev,
@@ -295,7 +301,7 @@ struct vdpa_config_ops {
 struct vdpa_device *__vdpa_alloc_device(struct device *parent,
 					const struct vdpa_config_ops *config,
 					size_t size, const char *name,
-					bool use_va);
+					bool use_va, unsigned ngroups);
 
 /**
  * vdpa_alloc_device - allocate and initilaize a vDPA device
@@ -309,12 +315,14 @@ struct vdpa_device *__vdpa_alloc_device(struct device *parent,
  *
  * Return allocated data structure or ERR_PTR upon error
  */
-#define vdpa_alloc_device(dev_struct, member, parent, config, name, use_va)   \
+#define vdpa_alloc_device(dev_struct, member, parent, config, name, use_va, \
+                          ngroups)   \
 			  container_of(__vdpa_alloc_device( \
 				       parent, config, \
 				       sizeof(dev_struct) + \
 				       BUILD_BUG_ON_ZERO(offsetof( \
-				       dev_struct, member)), name, use_va), \
+				       dev_struct, member)), name, use_va, \
+                                       ngroups), \
 				       dev_struct, member)
 
 int vdpa_register_device(struct vdpa_device *vdev, int nvqs);

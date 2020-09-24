@@ -251,7 +251,7 @@ struct vdpasim *vdpasim_create(struct vdpasim_dev_attr *dev_attr)
 		ops = &vdpasim_config_ops;
 
 	vdpasim = vdpa_alloc_device(struct vdpasim, vdpa, NULL, ops,
-				    dev_attr->name, false);
+				    dev_attr->name, false, 1);
 	if (IS_ERR(vdpasim)) {
 		ret = PTR_ERR(vdpasim);
 		goto err_alloc;
@@ -397,6 +397,11 @@ static int vdpasim_get_vq_state(struct vdpa_device *vdpa, u16 idx,
 static u32 vdpasim_get_vq_align(struct vdpa_device *vdpa)
 {
 	return VDPASIM_QUEUE_ALIGN;
+}
+
+static u32 vdpasim_get_vq_group(struct vdpa_device *vdpa, u16 idx)
+{
+	return 0;
 }
 
 static u64 vdpasim_get_features(struct vdpa_device *vdpa)
@@ -621,6 +626,7 @@ static const struct vdpa_config_ops vdpasim_config_ops = {
 	.set_vq_state           = vdpasim_set_vq_state,
 	.get_vq_state           = vdpasim_get_vq_state,
 	.get_vq_align           = vdpasim_get_vq_align,
+	.get_vq_group           = vdpasim_get_vq_group,
 	.get_features           = vdpasim_get_features,
 	.set_features           = vdpasim_set_features,
 	.set_config_cb          = vdpasim_set_config_cb,
@@ -651,6 +657,7 @@ static const struct vdpa_config_ops vdpasim_batch_config_ops = {
 	.set_vq_state           = vdpasim_set_vq_state,
 	.get_vq_state           = vdpasim_get_vq_state,
 	.get_vq_align           = vdpasim_get_vq_align,
+	.get_vq_group           = vdpasim_get_vq_group,
 	.get_features           = vdpasim_get_features,
 	.set_features           = vdpasim_set_features,
 	.set_config_cb          = vdpasim_set_config_cb,
