@@ -28,7 +28,8 @@
 enum {
 	VHOST_VDPA_BACKEND_FEATURES =
 	(1ULL << VHOST_BACKEND_F_IOTLB_MSG_V2) |
-	(1ULL << VHOST_BACKEND_F_IOTLB_BATCH),
+	(1ULL << VHOST_BACKEND_F_IOTLB_BATCH) |
+	(1ULL << VHOST_BACKEND_F_IOTLB_ASID),
 };
 
 #define VHOST_VDPA_DEV_MAX (1U << MINORBITS)
@@ -58,12 +59,20 @@ struct vhost_vdpa {
 	struct eventfd_ctx *config_ctx;
 	int n_iotlb_updates;
 	int used_as;
+	u32 batch_asid;
 	struct vdpa_iova_range range;
 };
 
 static DEFINE_IDA(vhost_vdpa_ida);
 
 static dev_t vhost_vdpa_major;
+
+static inline u32 iotlb_to_asid(struct vhost_iotlb *iotlb)
+{
+	struct vhost_vdpa_as *as = container_of(iotlb, struct
+						vhost_vdpa_as, iotlb);
+	return as->id;
+}
 
 static struct vhost_vdpa_as *asid_to_as(struct vhost_vdpa *v, u32 asid)
 {
@@ -77,12 +86,25 @@ static struct vhost_vdpa_as *asid_to_as(struct vhost_vdpa *v, u32 asid)
 	return NULL;
 }
 
+static struct vhost_iotlb *asid_to_iotlb(struct vhost_vdpa *v, u32 asid)
+{
+	struct vhost_vdpa_as *as = asid_to_as(v, asid);
+
+	if (!as)
+		return NULL;
+
+	return &as->iotlb;
+}
+
 static struct vhost_vdpa_as *vhost_vdpa_alloc_as(struct vhost_vdpa *v, u32 asid)
 {
 	struct hlist_head *head = &v->as[asid % VHOST_VDPA_IOTLB_BUCKETS];
 	struct vhost_vdpa_as *as;
 
 	if (asid_to_as(v, asid))
+		return NULL;
+
+	if (asid >= v->vdpa->nas)
 		return NULL;
 
 	as = kmalloc(sizeof(*as), GFP_KERNEL);
@@ -97,13 +119,20 @@ static struct vhost_vdpa_as *vhost_vdpa_alloc_as(struct vhost_vdpa *v, u32 asid)
 	return as;
 }
 
-static int vhost_vdpa_remove_as(struct vhost_vdpa *v, u32 asid)
+static struct vhost_vdpa_as *vhost_vdpa_find_alloc_as(struct vhost_vdpa *v,
+						      u32 asid)
 {
 	struct vhost_vdpa_as *as = asid_to_as(v, asid);
 
-	/* Remove default address space is not allowed */
-	if (asid == 0)
-		return -EINVAL;
+	if (as)
+		return as;
+
+	return vhost_vdpa_alloc_as(v, asid);
+}
+
+static int vhost_vdpa_remove_as(struct vhost_vdpa *v, u32 asid)
+{
+	struct vhost_vdpa_as *as = asid_to_as(v, asid);
 
 	if (!as)
 		return -EINVAL;
@@ -669,6 +698,7 @@ static int vhost_vdpa_map(struct vhost_vdpa *v, struct vhost_iotlb *iotlb,
 	struct vhost_dev *dev = &v->vdev;
 	struct vdpa_device *vdpa = v->vdpa;
 	const struct vdpa_config_ops *ops = vdpa->config;
+	u32 asid = iotlb_to_asid(iotlb);
 	int r = 0;
 
 	r = vhost_iotlb_add_range_ctx(iotlb, iova, iova + size - 1,
@@ -677,10 +707,10 @@ static int vhost_vdpa_map(struct vhost_vdpa *v, struct vhost_iotlb *iotlb,
 		return r;
 
 	if (ops->dma_map) {
-		r = ops->dma_map(vdpa, 0, iova, size, pa, perm, opaque);
+		r = ops->dma_map(vdpa, asid, iova, size, pa, perm, opaque);
 	} else if (ops->set_map) {
 		if (v->n_iotlb_updates == VHOST_VDPA_NOT_IN_IOTLB_BATCH)
-			r = ops->set_map(vdpa, 0, iotlb);
+			r = ops->set_map(vdpa, asid, iotlb);
 		else
 			v->n_iotlb_updates++;
 	} else {
@@ -698,24 +728,34 @@ static int vhost_vdpa_map(struct vhost_vdpa *v, struct vhost_iotlb *iotlb,
 	return 0;
 }
 
-static void vhost_vdpa_unmap(struct vhost_vdpa *v, struct vhost_iotlb *iotlb,
-			     u64 iova, u64 size)
+static int vhost_vdpa_unmap(struct vhost_vdpa *v,
+			    struct vhost_iotlb *iotlb,
+			    u64 iova, u64 size)
 {
 	struct vdpa_device *vdpa = v->vdpa;
 	const struct vdpa_config_ops *ops = vdpa->config;
+	u32 asid = iotlb_to_asid(iotlb);
+
+	if (!iotlb)
+		return -EINVAL;
 
 	vhost_vdpa_iotlb_unmap(v, iotlb, iova, iova + size - 1);
 
 	if (ops->dma_map) {
-		ops->dma_unmap(vdpa, 0, iova, size);
+		ops->dma_unmap(vdpa, asid, iova, size);
 	} else if (ops->set_map) {
 		if (v->n_iotlb_updates == VHOST_VDPA_NOT_IN_IOTLB_BATCH)
-			ops->set_map(vdpa, 0, iotlb);
+			ops->set_map(vdpa, asid, iotlb);
 		else
 			v->n_iotlb_updates++;
 	} else {
 		iommu_unmap(v->domain, iova, size);
 	}
+
+	if (!iotlb->nmaps)
+		vhost_vdpa_remove_as(v, asid);
+
+	return 0;
 }
 
 static int vhost_vdpa_va_map(struct vhost_vdpa *v, struct vhost_iotlb *iotlb,
@@ -921,32 +961,40 @@ static int vhost_vdpa_process_iotlb_msg(struct vhost_dev *dev, u32 asid,
 	struct vhost_vdpa *v = container_of(dev, struct vhost_vdpa, vdev);
 	struct vdpa_device *vdpa = v->vdpa;
 	const struct vdpa_config_ops *ops = vdpa->config;
-	struct vhost_vdpa_as *as = asid_to_as(v, 0);
-	struct vhost_iotlb *iotlb = &as->iotlb;
+	struct vhost_iotlb *iotlb = asid_to_iotlb(v, asid);
+	struct vhost_vdpa_as *as;
 	int r = 0;
 
 	mutex_lock(&dev->mutex);
 
-	if (asid != 0)
-		return -EINVAL;
-
 	r = vhost_dev_check_owner(dev);
 	if (r)
 		goto unlock;
+
+	if ((msg->type == VHOST_IOTLB_UPDATE) && !iotlb) {
+		as = vhost_vdpa_find_alloc_as(v, asid);
+		if (!as)
+			return -EINVAL;
+		iotlb = &as->iotlb;
+	}
+
+	if (v->n_iotlb_updates != VHOST_VDPA_NOT_IN_IOTLB_BATCH && v->batch_asid != asid)
+		return -EINVAL;
 
 	switch (msg->type) {
 	case VHOST_IOTLB_UPDATE:
 		r = vhost_vdpa_process_iotlb_update(v, iotlb, msg);
 		break;
 	case VHOST_IOTLB_INVALIDATE:
-		vhost_vdpa_unmap(v, iotlb, msg->iova, msg->size);
+		r = vhost_vdpa_unmap(v, iotlb, msg->iova, msg->size);
 		break;
 	case VHOST_IOTLB_BATCH_BEGIN:
+		v->batch_asid = asid;
 		v->n_iotlb_updates = 0;
 		break;
 	case VHOST_IOTLB_BATCH_END:
 		if (v->n_iotlb_updates > 0 && ops->set_map)
-			ops->set_map(vdpa, 0, iotlb);
+			ops->set_map(vdpa, v->batch_asid, iotlb);
 		v->n_iotlb_updates = VHOST_VDPA_NOT_IN_IOTLB_BATCH;
 		break;
 	default:
@@ -1067,22 +1115,30 @@ static int vhost_vdpa_open(struct inode *inode, struct file *filep)
 	vhost_dev_init(dev, vqs, nvqs, 0, 0, 0, false,
 		       vhost_vdpa_process_iotlb_msg);
 
-	if (!vhost_vdpa_alloc_as(v, 0))
-		goto err_alloc_as;
-
 	r = vhost_vdpa_alloc_domain(v);
 	if (r)
-		goto err_alloc_as;
+		goto err_alloc_domain;
 
 	vhost_vdpa_set_iova_range(v);
 
 	filep->private_data = v;
 
 	return 0;
-err_alloc_as:
-	vhost_dev_cleanup(&v->vdev);
-	kfree(vqs);
-	vhost_vdpa_remove_as(v, 0);
+err_alloc_domain:
+	{
+		struct vhost_vdpa_as *as;
+		u32 asid;
+
+		vhost_dev_cleanup(&v->vdev);
+		kfree(v->vdev.vqs);
+
+		for (asid = 0; asid < v->vdpa->nas; asid++) {
+			as = asid_to_as(v, asid);
+			if (as)
+				vhost_vdpa_remove_as(v, asid);
+		}
+	}
+
 err:
 	atomic_dec(&v->opened);
 	return r;
@@ -1100,6 +1156,8 @@ static int vhost_vdpa_release(struct inode *inode, struct file *filep)
 {
 	struct vhost_vdpa *v = filep->private_data;
 	struct vhost_dev *d = &v->vdev;
+	struct vhost_vdpa_as *as;
+	u32 asid;
 
 	mutex_lock(&d->mutex);
 	filep->private_data = NULL;
@@ -1110,6 +1168,11 @@ static int vhost_vdpa_release(struct inode *inode, struct file *filep)
 	vhost_vdpa_clean_irq(v);
 	vhost_dev_cleanup(&v->vdev);
 	kfree(v->vdev.vqs);
+	for (asid = 0; asid < v->vdpa->nas; asid++) {
+		as = asid_to_as(v, asid);
+		if (as)
+			vhost_vdpa_remove_as(v, asid);
+	}
 	vhost_vdpa_remove_as(v, 0);
 	mutex_unlock(&d->mutex);
 
@@ -1208,8 +1271,8 @@ static int vhost_vdpa_probe(struct vdpa_device *vdpa)
 	int minor;
 	int i, r;
 
-	/* Only support 1 address space */
-	if (vdpa->ngroups != 1)
+	/* We can't support platform IOMMU device with more than 1 group */
+	if (!ops->set_map && !ops->dma_map && vdpa->ngroups > 1)
 		return -ENOTSUPP;
 
 	v = kzalloc(sizeof(*v), GFP_KERNEL | __GFP_RETRY_MAYFAIL);
