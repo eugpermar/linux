@@ -166,10 +166,12 @@ static long vhost_vdpa_set_status(struct vhost_vdpa *v, u8 __user *statusp)
 	status_old = ops->get_status(vdpa);
 
 	/*
-	 * Userspace shouldn't remove status bits unless reset the
-	 * status to 0.
+	 * Userspace shouldn't remove status bits other than STOPPED unless
+	 * reset the status to 0.
 	 */
-	if (status != 0 && (ops->get_status(vdpa) & ~status) != 0)
+	if (status != 0 &&
+	    (ops->get_status(vdpa) & ~status &
+	     ~VIRTIO_CONFIG_S_DEVICE_STOPPED) != 0)
 		return -EINVAL;
 
 	ops->set_status(vdpa, status);
