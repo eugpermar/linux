@@ -570,6 +570,36 @@ u16 vp_modern_get_queue_size(struct virtio_pci_modern_device *mdev,
 EXPORT_SYMBOL_GPL(vp_modern_get_queue_size);
 
 /*
+ * vp_modern_set_queue_state - set state for a virtqueue
+ * @mdev: the modern virtio-pci device
+ * @index: the queue index
+ * @state: the state of the virtqueue
+ */
+void vp_modern_set_queue_state(struct virtio_pci_modern_device *mdev,
+			        u16 index, u16 state)
+{
+	vp_iowrite16(index, &mdev->common->queue_select);
+	vp_iowrite16(state, &mdev->common->queue_state);
+}
+EXPORT_SYMBOL_GPL(vp_modern_set_queue_state);
+
+/*
+ * vp_modern_get_queue_state - get state for a virtqueue
+ * @mdev: the modern virtio-pci device
+ * @index: the queue index
+ *
+ * Returns the state of the virtqueue
+ */
+u16 vp_modern_get_queue_state(struct virtio_pci_modern_device *mdev,
+			      u16 index)
+{
+	vp_iowrite16(index, &mdev->common->queue_select);
+
+	return vp_ioread16(&mdev->common->queue_state);
+}
+EXPORT_SYMBOL_GPL(vp_modern_get_queue_state);
+
+/*
  * vp_modern_get_num_queues - get the number of virtqueues
  * @mdev: the modern virtio-pci device
  *
