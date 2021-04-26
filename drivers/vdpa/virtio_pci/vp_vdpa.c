@@ -225,11 +225,14 @@ static u16 vp_vdpa_get_vq_num_max(struct vdpa_device *vdpa)
 static int vp_vdpa_get_vq_state(struct vdpa_device *vdpa, u16 qid,
 				struct vdpa_vq_state *state)
 {
-	/* Note that this is not supported by virtio specification, so
-	 * we return -EOPNOTSUPP here. This means we can't support live
-	 * migration, vhost device start/stop.
-	 */
-	return -EOPNOTSUPP;
+	struct virtio_pci_modern_device *mdev = vdpa_to_mdev(vdpa);
+
+	if (!(vp_modern_get_driver_features(mdev) &
+	      BIT_ULL(VIRTIO_F_QUEUE_STATE)))
+		return -EOPNOTSUPP;
+
+	state->split.avail_index = vp_modern_get_queue_state(mdev, qid);
+	return 0;
 }
 
 static bool vp_vdpa_is_initial_vq_state_split(const struct vdpa_vq_state *state)
@@ -266,6 +269,9 @@ static int vp_vdpa_set_vq_state(struct vdpa_device *vdpa, u16 qid,
 		if (vp_vdpa_is_initial_vq_state_packed(state))
 			return 0;
 	} else if (vp_vdpa_is_initial_vq_state_split(state)) {
+		return 0;
+	} else if (features & BIT_ULL(VIRTIO_F_QUEUE_STATE)) {
+		vp_modern_set_queue_state(mdev, qid, state->split.avail_index);
 		return 0;
 	}
 
