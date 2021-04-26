@@ -35,6 +35,7 @@ struct vp_vdpa {
 	struct virtio_pci_modern_device mdev;
 	struct vp_vring *vring;
 	struct vdpa_callback config_cb;
+	u64 features;
 	char msix_name[VP_VDPA_NAME_SIZE];
 	int config_irq;
 	int queues;
@@ -63,7 +64,9 @@ static u64 vp_vdpa_get_features(struct vdpa_device *vdpa)
 static int vp_vdpa_set_features(struct vdpa_device *vdpa, u64 features)
 {
 	struct virtio_pci_modern_device *mdev = vdpa_to_mdev(vdpa);
+	struct vp_vdpa *vp_vdpa = vdpa_to_vp(vdpa);
 
+	vp_vdpa->features = features;
 	vp_modern_set_features(mdev, features);
 
 	return 0;
