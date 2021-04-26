@@ -206,21 +206,24 @@ static u16 vp_vdpa_get_vq_num_max(struct vdpa_device *vdpa)
 static int vp_vdpa_get_vq_state(struct vdpa_device *vdpa, u16 qid,
 				struct vdpa_vq_state *state)
 {
-	/* Note that this is not supported by virtio specification, so
-	 * we return -EOPNOTSUPP here. This means we can't support live
-	 * migration, vhost device start/stop.
-	 */
-	return -EOPNOTSUPP;
+	struct vp_vdpa *vp_vdpa = vdpa_to_vp(vdpa);
+
+	if (!(vp_vdpa->features & VIRTIO_CONFIG_S_DEVICE_STOPPED))
+		return -EOPNOTSUPP;
+
+	return vp_modern_get_queue_state(&vp_vdpa->mdev, qid);
 }
 
 static int vp_vdpa_set_vq_state(struct vdpa_device *vdpa, u16 qid,
 				const struct vdpa_vq_state *state)
 {
-	/* Note that this is not supported by virtio specification, so
-	 * we return -ENOPOTSUPP here. This means we can't support live
-	 * migration, vhost device start/stop.
-	 */
-	return -EOPNOTSUPP;
+	struct vp_vdpa *vp_vdpa = vdpa_to_vp(vdpa);
+
+	if (!(vp_vdpa->features & VIRTIO_CONFIG_S_DEVICE_STOPPED))
+		return -EOPNOTSUPP;
+
+	vp_modern_set_queue_state(&vp_vdpa->mdev, qid, state->avail_index);
+	return 0;
 }
 
 static void vp_vdpa_set_vq_cb(struct vdpa_device *vdpa, u16 qid,
