@@ -809,8 +809,10 @@ static int vhost_vdpa_alloc_domain(struct vhost_vdpa *v)
 	if (!bus)
 		return -EFAULT;
 
+	#if 0
 	if (!iommu_capable(bus, IOMMU_CAP_CACHE_COHERENCY))
 		return -ENOTSUPP;
+	#endif
 
 	v->domain = iommu_domain_alloc(bus);
 	if (!v->domain)
