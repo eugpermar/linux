@@ -502,6 +502,8 @@ static long vhost_vdpa_unlocked_ioctl(struct file *filep,
 
 static void vhost_vdpa_iotlb_unmap(struct vhost_vdpa *v, u64 start, u64 last)
 {
+	struct vdpa_device *vdpa = v->vdpa;
+	const struct vdpa_config_ops *ops = vdpa->config;
 	struct vhost_dev *dev = &v->vdev;
 	struct vhost_iotlb *iotlb = dev->iotlb;
 	struct vhost_iotlb_map *map;
@@ -519,6 +521,12 @@ static void vhost_vdpa_iotlb_unmap(struct vhost_vdpa *v, u64 start, u64 last)
 		}
 		atomic64_sub(map->size >> PAGE_SHIFT, &dev->mm->pinned_vm);
 		vhost_iotlb_map_free(iotlb, map);
+
+		if (ops->dma_map) {
+			ops->dma_unmap(vdpa, map->start, map->size);
+		} else if (!ops->set_map) {
+			iommu_unmap(v->domain, map->start, map->size);
+		}
 	}
 }
 
@@ -592,13 +600,15 @@ static void vhost_vdpa_unmap(struct vhost_vdpa *v, u64 iova, u64 size)
 
 	vhost_vdpa_iotlb_unmap(v, iova, iova + size - 1);
 
-	if (ops->dma_map) {
+	/* if (ops->dma_map) {
 		ops->dma_unmap(vdpa, iova, size);
-	} else if (ops->set_map) {
+	} else */ if (ops->set_map) {
 		if (!v->in_batch)
 			ops->set_map(vdpa, dev->iotlb);
+#if 0
 	} else {
 		iommu_unmap(v->domain, iova, size);
+#endif
 	}
 }
 
