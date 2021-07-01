@@ -96,18 +96,6 @@ typedef int __bitwise fpi_t;
 #define FPI_SKIP_REPORT_NOTIFY	((__force fpi_t)BIT(0))
 
 /*
- * Place the (possibly merged) page to the tail of the freelist. Will ignore
- * page shuffling (relevant code - e.g., memory onlining - is expected to
- * shuffle the whole zone).
- *
- * Note: No code should rely on this flag for correctness - it's purely
- *       to allow for optimizations when handing back either fresh pages
- *       (memory onlining) or untouched pages (page isolation, free page
- *       reporting).
- */
-#define FPI_TO_TAIL		((__force fpi_t)BIT(1))
-
-/*
  * Don't poison memory with KASAN (only for the tag-based modes).
  * During boot, all non-reserved memblock memory is exposed to page_alloc.
  * Poisoning all that memory lengthens boot time, especially on systems with
@@ -1093,9 +1081,7 @@ continue_merging:
 done_merging:
 	set_buddy_order(page, order);
 
-	if (fpi_flags & FPI_TO_TAIL)
-		to_tail = true;
-	else if (is_shuffle_order(order))
+	if (is_shuffle_order(order))
 		to_tail = shuffle_pick_tail();
 	else
 		to_tail = buddy_merge_likely(pfn, buddy_pfn, page, order);
@@ -3412,7 +3398,7 @@ void __putback_isolated_page(struct page *page, unsigned int order, int mt)
 
 	/* Return isolated page to tail of freelist. */
 	__free_one_page(page, page_to_pfn(page), zone, order, mt,
-			FPI_SKIP_REPORT_NOTIFY | FPI_TO_TAIL);
+			FPI_SKIP_REPORT_NOTIFY);
 }
 
 /*
