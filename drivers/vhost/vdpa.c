@@ -32,6 +32,7 @@ enum {
 };
 
 #define VHOST_VDPA_DEV_MAX (1U << MINORBITS)
+#define VHOST_VDPA_NOT_IN_IOTLB_BATCH -1
 
 struct vhost_vdpa {
 	struct vhost_dev vdev;
@@ -46,7 +47,7 @@ struct vhost_vdpa {
 	int virtio_id;
 	int minor;
 	struct eventfd_ctx *config_ctx;
-	int in_batch;
+	int n_iotlb_updates;
 	struct vdpa_iova_range range;
 };
 
@@ -120,8 +121,7 @@ static int vhost_vdpa_reset(struct vhost_vdpa *v)
 {
 	struct vdpa_device *vdpa = v->vdpa;
 
-	v->in_batch = 0;
-
+	v->n_iotlb_updates = VHOST_VDPA_NOT_IN_IOTLB_BATCH;
 	return vdpa_reset(vdpa);
 }
 
@@ -598,8 +598,10 @@ static int vhost_vdpa_map(struct vhost_vdpa *v, u64 iova,
 	if (ops->dma_map) {
 		r = ops->dma_map(vdpa, iova, size, pa, perm, opaque);
 	} else if (ops->set_map) {
-		if (!v->in_batch)
+		if (v->n_iotlb_updates == VHOST_VDPA_NOT_IN_IOTLB_BATCH)
 			r = ops->set_map(vdpa, dev->iotlb);
+		else
+			v->n_iotlb_updates++;
 	} else {
 		r = iommu_map(v->domain, iova, pa, size,
 			      perm_to_iommu_flags(perm));
@@ -626,8 +628,10 @@ static void vhost_vdpa_unmap(struct vhost_vdpa *v, u64 iova, u64 size)
 	if (ops->dma_map) {
 		ops->dma_unmap(vdpa, iova, size);
 	} else if (ops->set_map) {
-		if (!v->in_batch)
+		if (v->n_iotlb_updates == VHOST_VDPA_NOT_IN_IOTLB_BATCH)
 			ops->set_map(vdpa, dev->iotlb);
+		else
+			v->n_iotlb_updates++;
 	} else {
 		iommu_unmap(v->domain, iova, size);
 	}
@@ -853,12 +857,12 @@ static int vhost_vdpa_process_iotlb_msg(struct vhost_dev *dev,
 		vhost_vdpa_unmap(v, msg->iova, msg->size);
 		break;
 	case VHOST_IOTLB_BATCH_BEGIN:
-		v->in_batch = true;
+		v->n_iotlb_updates = 0;
 		break;
 	case VHOST_IOTLB_BATCH_END:
-		if (v->in_batch && ops->set_map)
+		if (v->n_iotlb_updates > 0 && ops->set_map)
 			ops->set_map(vdpa, dev->iotlb);
-		v->in_batch = false;
+		v->n_iotlb_updates = VHOST_VDPA_NOT_IN_IOTLB_BATCH;
 		break;
 	default:
 		r = -EINVAL;
