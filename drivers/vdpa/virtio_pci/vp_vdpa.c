@@ -193,7 +193,14 @@ static void vp_vdpa_set_status(struct vdpa_device *vdpa, u8 status)
 
 static int vp_vdpa_stop(struct vdpa_device *vdpa)
 {
-	return -EOPNOTSUPP;
+	u8 s = vp_vdpa_get_status(vdpa);
+	/* TODO: Add sleep here so we don't burn device with stop reqs */
+	do {
+		vp_vdpa_set_status(vdpa, s | VIRTIO_CONFIG_S_DEVICE_STOPPED);
+		s = vp_vdpa_get_status(vdpa);
+	} while(!(s & VIRTIO_CONFIG_S_DEVICE_STOPPED));
+
+	return 0;
 }
 
 static int vp_vdpa_reset(struct vdpa_device *vdpa)
