@@ -2181,6 +2181,11 @@ err_setup:
 	ndev->mvdev.status |= VIRTIO_CONFIG_S_FAILED;
 }
 
+static int mlx5_vdpa_stop(struct vdpa_device *vdev)
+{
+	return -EOPNOTSUPP;
+}
+
 static int mlx5_vdpa_reset(struct vdpa_device *vdev)
 {
 	struct mlx5_vdpa_dev *mvdev = to_mvdev(vdev);
@@ -2317,6 +2322,7 @@ static const struct vdpa_config_ops mlx5_vdpa_ops = {
 	.get_vendor_id = mlx5_vdpa_get_vendor_id,
 	.get_status = mlx5_vdpa_get_status,
 	.set_status = mlx5_vdpa_set_status,
+	.stop = mlx5_vdpa_stop,
 	.reset = mlx5_vdpa_reset,
 	.get_config_size = mlx5_vdpa_get_config_size,
 	.get_config = mlx5_vdpa_get_config,

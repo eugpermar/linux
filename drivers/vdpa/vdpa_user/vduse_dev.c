@@ -669,6 +669,11 @@ static void vduse_vdpa_set_config(struct vdpa_device *vdpa, unsigned int offset,
 
 static int vduse_vdpa_reset(struct vdpa_device *vdpa)
 {
+	return -EOPNOTSUPP;
+}
+
+static int vduse_vdpa_reset(struct vdpa_device *vdpa)
+{
 	struct vduse_dev *dev = vdpa_to_vduse(vdpa);
 	int ret = vduse_dev_set_status(dev, 0);
 
@@ -732,6 +737,7 @@ static const struct vdpa_config_ops vduse_vdpa_config_ops = {
 	.get_config		= vduse_vdpa_get_config,
 	.set_config		= vduse_vdpa_set_config,
 	.get_generation		= vduse_vdpa_get_generation,
+	.stop			= vduse_vdpa_stop,
 	.reset			= vduse_vdpa_reset,
 	.set_map		= vduse_vdpa_set_map,
 	.free			= vduse_vdpa_free,

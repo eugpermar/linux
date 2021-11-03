@@ -191,6 +191,11 @@ static void vp_vdpa_set_status(struct vdpa_device *vdpa, u8 status)
 	vp_modern_set_status(mdev, status);
 }
 
+static int vp_vdpa_stop(struct vdpa_device *vdpa)
+{
+	return -EOPNOTSUPP;
+}
+
 static int vp_vdpa_reset(struct vdpa_device *vdpa)
 {
 	struct vp_vdpa *vp_vdpa = vdpa_to_vp(vdpa);
@@ -408,6 +413,7 @@ static const struct vdpa_config_ops vp_vdpa_ops = {
 	.set_features	= vp_vdpa_set_features,
 	.get_status	= vp_vdpa_get_status,
 	.set_status	= vp_vdpa_set_status,
+	.stop		= vp_vdpa_stop,
 	.reset		= vp_vdpa_reset,
 	.get_vq_num_max	= vp_vdpa_get_vq_num_max,
 	.get_vq_state	= vp_vdpa_get_vq_state,

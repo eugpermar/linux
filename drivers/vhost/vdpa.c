@@ -181,6 +181,11 @@ static long vhost_vdpa_set_status(struct vhost_vdpa *v, u8 __user *statusp)
 		ret = ops->reset(vdpa);
 		if (ret)
 			return ret;
+	} else if (!(status_old & VIRTIO_CONFIG_S_DEVICE_STOPPED) &&
+		   status & VIRTIO_CONFIG_S_DEVICE_STOPPED) {
+		ret = ops->stop(vdpa);
+		if (ret)
+			return ret;
 	} else
 		ops->set_status(vdpa, status);
 

@@ -241,6 +241,11 @@ static void ifcvf_vdpa_set_status(struct vdpa_device *vdpa_dev, u8 status)
 	ifcvf_set_status(vf, status);
 }
 
+static int ifcvf_vdpa_stop(struct vdpa_device *vdpa_dev)
+{
+	return -EOPNOTSUPP;
+}
+
 static int ifcvf_vdpa_reset(struct vdpa_device *vdpa_dev)
 {
 	struct ifcvf_adapter *adapter;
@@ -447,6 +452,7 @@ static const struct vdpa_config_ops ifc_vdpa_ops = {
 	.set_features	= ifcvf_vdpa_set_features,
 	.get_status	= ifcvf_vdpa_get_status,
 	.set_status	= ifcvf_vdpa_set_status,
+	.stop           = ifcvf_vdpa_stop,
 	.reset		= ifcvf_vdpa_reset,
 	.get_vq_num_max	= ifcvf_vdpa_get_vq_num_max,
 	.get_vq_state	= ifcvf_vdpa_get_vq_state,
