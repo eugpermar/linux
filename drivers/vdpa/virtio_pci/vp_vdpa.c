@@ -232,47 +232,41 @@ static int vp_vdpa_get_vq_state(struct vdpa_device *vdpa, u16 qid,
 	return -EOPNOTSUPP;
 }
 
-static int vp_vdpa_set_vq_state_split(struct vdpa_device *vdpa,
-				      const struct vdpa_vq_state *state)
+static bool vp_vdpa_is_initial_vq_state_split(const struct vdpa_vq_state *state)
 {
-	const struct vdpa_vq_state_split *split = &state->split;
-
-	if (split->avail_index == 0)
-		return 0;
-
-	return -EOPNOTSUPP;
+	return state->split.avail_index == 0;
 }
 
-static int vp_vdpa_set_vq_state_packed(struct vdpa_device *vdpa,
-				       const struct vdpa_vq_state *state)
+static bool vp_vdpa_is_initial_vq_state_packed(const struct vdpa_vq_state *state)
 {
 	const struct vdpa_vq_state_packed *packed = &state->packed;
-
-	if (packed->last_avail_counter == 1 &&
-	    packed->last_avail_idx == 0 &&
-	    packed->last_used_counter == 1 &&
-	    packed->last_used_idx == 0)
-		return 0;
-
-	return -EOPNOTSUPP;
+	return packed->last_avail_counter == 1 &&
+	       packed->last_avail_idx == 0 &&
+	       packed->last_used_counter == 1 &&
+	       packed->last_used_idx == 0;
 }
 
 static int vp_vdpa_set_vq_state(struct vdpa_device *vdpa, u16 qid,
 				const struct vdpa_vq_state *state)
 {
 	struct virtio_pci_modern_device *mdev = vdpa_to_mdev(vdpa);
+	uint64_t features = vp_modern_get_driver_features(mdev);
+
+	if (!(vp_modern_get_status(mdev) & VIRTIO_CONFIG_S_FEATURES_OK))
+		return -EOPNOTSUPP;
+
+	if (vp_modern_get_queue_enable(mdev, qid))
+		return -EOPNOTSUPP;
 
 	/* Note that this is not supported by virtio specification.
 	 * But if the state is by chance equal to the device initial
 	 * state, we can let it go.
 	 */
-	if ((vp_modern_get_status(mdev) & VIRTIO_CONFIG_S_FEATURES_OK) &&
-	    !vp_modern_get_queue_enable(mdev, qid)) {
-		if (vp_modern_get_driver_features(mdev) &
-		    BIT_ULL(VIRTIO_F_RING_PACKED))
-			return vp_vdpa_set_vq_state_packed(vdpa, state);
-		else
-			return vp_vdpa_set_vq_state_split(vdpa,	state);
+	if (features & BIT_ULL(VIRTIO_F_RING_PACKED)) {
+		if (vp_vdpa_is_initial_vq_state_packed(state))
+			return 0;
+	} else if (vp_vdpa_is_initial_vq_state_split(state)) {
+		return 0;
 	}
 
 	return -EOPNOTSUPP;
