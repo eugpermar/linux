@@ -335,7 +335,7 @@ static void vdpasim_kick_vq(struct vdpa_device *vdpa, u16 idx)
 	struct vdpasim *vdpasim = vdpa_to_sim(vdpa);
 	struct vdpasim_virtqueue *vq = &vdpasim->vqs[idx];
 
-	if (vq->ready)
+	if (vq->ready && !vdpasim->stopped)
 		schedule_work(&vdpasim->work);
 }
 
@@ -465,7 +465,12 @@ static void vdpasim_set_status(struct vdpa_device *vdpa, u8 status)
 
 static int vdpasim_stop(struct vdpa_device *vdpa)
 {
-	return -EOPNOTSUPP;
+	struct vdpasim *vdpasim = vdpa_to_sim(vdpa);
+
+	cancel_work_sync(&vdpasim->work);
+	vdpasim->stopped = true;
+
+	return true;
 }
 
 static int vdpasim_reset(struct vdpa_device *vdpa)
@@ -589,7 +594,8 @@ static void vdpasim_free(struct vdpa_device *vdpa)
 	struct vdpasim *vdpasim = vdpa_to_sim(vdpa);
 	int i;
 
-	cancel_work_sync(&vdpasim->work);
+	if (!vdpasim->stopped)
+		vdpasim_stop(vdpa);
 
 	for (i = 0; i < vdpasim->dev_attr.nvqs; i++) {
 		vringh_kiov_cleanup(&vdpasim->vqs[i].out_iov);
@@ -653,6 +659,7 @@ static const struct vdpa_config_ops vdpasim_batch_config_ops = {
 	.get_vendor_id          = vdpasim_get_vendor_id,
 	.get_status             = vdpasim_get_status,
 	.set_status             = vdpasim_set_status,
+	.stop                   = vdpasim_stop,
 	.reset			= vdpasim_reset,
 	.get_config_size        = vdpasim_get_config_size,
 	.get_config             = vdpasim_get_config,
