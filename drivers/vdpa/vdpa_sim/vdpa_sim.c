@@ -99,7 +99,7 @@ static void vdpasim_do_reset(struct vdpasim *vdpasim)
 	for (i = 0; i < vdpasim->dev_attr.nvqs; i++) {
 		vdpasim_vq_reset(vdpasim, &vdpasim->vqs[i]);
 		vringh_set_iotlb(&vdpasim->vqs[i].vring,
-				 &vdpasim->iommu[0],
+				 &vdpasim->iommu[i == 2 ? 1 : 0],
 				 &vdpasim->iommu_lock);
 	}
 
