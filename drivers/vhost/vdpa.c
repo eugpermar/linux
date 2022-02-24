@@ -836,7 +836,7 @@ static int vhost_vdpa_process_iotlb_update(struct vhost_vdpa *v,
 				 msg->perm);
 }
 
-static int vhost_vdpa_process_iotlb_msg(struct vhost_dev *dev,
+static int vhost_vdpa_process_iotlb_msg(struct vhost_dev *dev, u32 asid,
 					struct vhost_iotlb_msg *msg)
 {
 	struct vhost_vdpa *v = container_of(dev, struct vhost_vdpa, vdev);
@@ -846,6 +846,9 @@ static int vhost_vdpa_process_iotlb_msg(struct vhost_dev *dev,
 	int r = 0;
 
 	mutex_lock(&dev->mutex);
+
+	if (asid != 0)
+		return -EINVAL;
 
 	r = vhost_dev_check_owner(dev);
 	if (r)
