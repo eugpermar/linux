@@ -845,10 +845,10 @@ static int vhost_vdpa_process_iotlb_msg(struct vhost_dev *dev, u32 asid,
 	struct vhost_iotlb *iotlb = v->iotlb;
 	int r = 0;
 
-	mutex_lock(&dev->mutex);
-
 	if (asid != 0)
 		return -EINVAL;
+
+	mutex_lock(&dev->mutex);
 
 	r = vhost_dev_check_owner(dev);
 	if (r)
