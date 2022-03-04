@@ -330,8 +330,6 @@ struct vdpa_config_ops {
 	int (*set_group_asid)(struct vdpa_device *vdev, unsigned int group,
 			      unsigned int asid);
 
-
-
 	/* Free device resources */
 	void (*free)(struct vdpa_device *vdev);
 };
