@@ -57,7 +57,6 @@ struct vhost_vdpa {
 	struct eventfd_ctx *config_ctx;
 	int in_batch;
 	struct vdpa_iova_range range;
-	int used_as;
 };
 
 static DEFINE_IDA(vhost_vdpa_ida);
@@ -91,7 +90,6 @@ static struct vhost_vdpa_as *vhost_vdpa_alloc_as(struct vhost_vdpa *v, u32 asid)
 	vhost_iotlb_init(&as->iotlb, 0, 0);
 	as->id = asid;
 	hlist_add_head(&as->hash_link, head);
-	++v->used_as;
 
 	return as;
 }
@@ -110,7 +108,6 @@ static int vhost_vdpa_remove_as(struct vhost_vdpa *v, u32 asid)
 	hlist_del(&as->hash_link);
 	vhost_iotlb_reset(&as->iotlb);
 	kfree(as);
-	--v->used_as;
 
 	return 0;
 }
