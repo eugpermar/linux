@@ -98,10 +98,6 @@ static int vhost_vdpa_remove_as(struct vhost_vdpa *v, u32 asid)
 {
 	struct vhost_vdpa_as *as = asid_to_as(v, asid);
 
-	/* Remove default address space is not allowed */
-	if (asid == 0)
-		return -EINVAL;
-
 	if (!as)
 		return -EINVAL;
 
