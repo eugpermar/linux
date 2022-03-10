@@ -27,7 +27,7 @@
 
 #define VDPASIM_NET_FEATURES	(VDPASIM_FEATURES | \
 				 (1ULL << VIRTIO_NET_F_MAC) | \
-				 (1ULL << VIRTIO_NET_F_MTU));
+				 (1ULL << VIRTIO_NET_F_MTU))
 
 #define VDPASIM_NET_VQ_NUM	2
 
