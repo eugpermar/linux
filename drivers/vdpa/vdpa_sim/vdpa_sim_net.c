@@ -49,6 +49,7 @@ static void vdpasim_net_complete(struct vdpasim_virtqueue *vq, size_t len)
 
 static bool receive_filter(struct vdpasim *vdpasim, size_t len)
 {
+	struct virtio_net_config *config = vdpasim->config;
 	bool modern = vdpasim->features & (1ULL << VIRTIO_F_VERSION_1);
 	size_t hdr_len = modern ? sizeof(struct virtio_net_hdr_v1) :
 				  sizeof(struct virtio_net_hdr);
@@ -56,8 +57,7 @@ static bool receive_filter(struct vdpasim *vdpasim, size_t len)
 	if (len < ETH_ALEN + hdr_len)
 		return false;
 
-	if (!strncmp(vdpasim->buffer + hdr_len,
-		     vdpasim->config.mac, ETH_ALEN))
+	if (!strncmp(vdpasim->buffer + hdr_len, config->mac, ETH_ALEN))
 		return true;
 
 	return false;
@@ -91,7 +91,7 @@ static void vdpasim_net_work(struct work_struct *work)
 					     PAGE_SIZE);
 
 		if (!receive_filter(vdpasim, read)) {
-			vdpasim_complete(txq, 0);
+			vdpasim_net_complete(txq, 0);
 			continue;
 		}
 
