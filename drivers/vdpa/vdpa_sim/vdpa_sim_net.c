@@ -62,10 +62,11 @@ static bool receive_filter(struct vdpasim *vdpasim, size_t len)
 	if (len < ETH_ALEN + hdr_len)
 		return false;
 
-	if (!strncmp(vdpasim->buffer + hdr_len, config->mac, ETH_ALEN))
-		return true;
+	// if (!strncmp(vdpasim->buffer + hdr_len, config->mac, ETH_ALEN))
+	//	return true;
 
-	return false;
+	//return false;
+	return true;
 }
 
 static virtio_net_ctrl_ack vdpasim_handle_ctrl_mac(struct vdpasim *vdpasim,
