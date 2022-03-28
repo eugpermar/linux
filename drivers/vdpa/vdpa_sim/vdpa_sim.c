@@ -573,7 +573,7 @@ static int vdpasim_set_group_asid(struct vdpa_device *vdpa, unsigned int group,
 
 	for (i = 0; i < vdpasim->dev_attr.nvqs; i++)
 		if (vdpasim_get_vq_group(vdpa, i) == group)
-			vringh_set_iotlb(&vdpasim->vqs[i].vring, &vdpasim->iommu[0],
+			vringh_set_iotlb(&vdpasim->vqs[i].vring, iommu,
 					 &vdpasim->iommu_lock);
 
 	spin_unlock(&vdpasim->lock);
