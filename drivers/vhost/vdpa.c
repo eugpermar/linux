@@ -478,6 +478,34 @@ static long vhost_vdpa_get_vqs_count(struct vhost_vdpa *v, u32 __user *argp)
 	return 0;
 }
 
+/* After a successful return of ioctl with suspend = 1, the device must not
+ * process more virtqueue descriptors, and it must not send any config
+ * interrupt. The device can answer to read or writes of config fields as if it
+ * were not suspended. In particular, writing to "queue_enable" with a value of
+ * 1 will not make the device start processing buffers of the virtqueue until
+ * the device is resumed (suspend = 0).
+ *
+ * After a successful return of ioctl with suspend = 0, the device will start
+ * processing data of the virtqueues if other expected conditions are met
+ * (queue is enabled, DRIVER_OK has already been set to status, etc.) If not,
+ * the device should be in the same state as if no call to suspend callback
+ * with suspend = 1 has been performed.
+ */
+static long vhost_vdpa_suspend(struct vhost_vdpa *v, u32 __user *argp)
+{
+	struct vdpa_device *vdpa = v->vdpa;
+	const struct vdpa_config_ops *ops = vdpa->config;
+	int suspend;
+
+	if (!ops->suspend)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&suspend, argp, sizeof(suspend)))
+		return -EFAULT;
+
+	return ops->suspend(vdpa, suspend);
+}
+
 static long vhost_vdpa_vring_ioctl(struct vhost_vdpa *v, unsigned int cmd,
 				   void __user *argp)
 {
@@ -651,6 +679,9 @@ static long vhost_vdpa_unlocked_ioctl(struct file *filep,
 		break;
 	case VHOST_VDPA_GET_VQS_COUNT:
 		r = vhost_vdpa_get_vqs_count(v, argp);
+		break;
+	case VHOST_VDPA_SUSPEND:
+		r = vhost_vdpa_suspend(v, argp);
 		break;
 	default:
 		r = vhost_dev_ioctl(&v->vdev, cmd, argp);
